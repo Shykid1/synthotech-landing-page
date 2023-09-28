@@ -1,0 +1,90 @@
+const express = require("express");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const Team = require("../models/teamModel");
+const teamController = require("../controllers/teamController");
+
+const router = express.Router();
+
+// Using multer middleware to save uploaded image to the uploads in the folder
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "../public/uploads/teamimg");
+  },
+  filename: (req, file, cb) => {
+    cb(
+      null,
+      file.fieldname + "_" + Date.now() + "_" + path.extname(file.originalname)
+    );
+  },
+});
+
+const upload = multer({
+  storage: storage,
+});
+
+router.get("/", teamController.getteam);
+router.get("/:id", teamController.getteamById);
+router.get("/update/:id", teamController.getupdatepage);
+router.get("/delete/:id", teamController.deleteById);
+
+router.post("/update/:id", upload.single("image"), async (req, res) => {
+  const { name, description } = req.body;
+  const image = req.file ? req.file.filename : req.body.oldimage;
+  const teamId = req.params.id;
+  try {
+    const team = await team.findById(teamId);
+
+    if (!team) {
+      res.status(404).json(`team Not found  `);
+    }
+
+    // Remove the old image if a new image is uploaded
+    if (image && image !== team.image) {
+      const imageFileName = team.image;
+      const imagePath = path.join(
+        __dirname,
+        "../../public/uploads/teamimg/" + imageFileName
+      );
+
+      fs.unlink(imagePath, (err) => {
+        if (err) {
+          console.error(err);
+        } else {
+          console.log("Image file deleted");
+        }
+      });
+    } else {
+      team.name = name;
+      team.description = description;
+      team.image = image;
+
+      await team.save();
+      res.redirect("/api/team");
+      console.log(`team updated successfully  `);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+});
+router.post("/create", upload.single("image"), async (req, res) => {
+  const { name, description } = req.body;
+  const image = req.file.filename;
+
+  try {
+    const team = new Team({
+      name: name,
+      description: description,
+      image: image,
+    });
+
+    await team.save();
+    res.redirect("/api/team");
+  } catch (error) {
+    console.log(error);
+    res.status(500).json(`fail to post team  `);
+  }
+});
+
+module.exports = router;
